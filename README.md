@@ -37,6 +37,25 @@ export ANTHROPIC_API_KEY=sk-ant-...
 npm start
 ```
 
+## Deploying to Render (Blueprint)
+
+This repo ships a [`render.yaml`](render.yaml) Blueprint, so it deploys as a
+Render web service in a few clicks:
+
+1. Push this repo to GitHub (already done if you're reading it there).
+2. In the Render dashboard: **New → Blueprint**, then pick this repository.
+   Render reads `render.yaml` and provisions the `sprawlopolis-scorer` web
+   service automatically.
+3. (Optional, for photo mode) set the **`ANTHROPIC_API_KEY`** environment
+   variable on the service. It's declared with `sync: false`, so it's never
+   committed — you enter the secret in the dashboard. Leave it unset to run
+   manual-form-only.
+4. Click **Apply**. Render runs `npm install` then `npm start` and serves the
+   app on its assigned URL (the server binds to Render's `PORT` automatically).
+
+The default plan is `free`. Free web services sleep after inactivity and cold-start
+on the next request — bump `plan` in `render.yaml` if you want it always-on.
+
 ## How scoring works
 
 **Base score** (from the rulebook):
