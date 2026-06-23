@@ -1,13 +1,103 @@
-// App wiring: card selection, editor controls, photo mode, scoring & results.
+// App wiring: card selection, manual form, photo mode + grid, scoring & results.
 (function () {
   "use strict";
 
   const activeCards = []; // ordered list of card ids
+  let mode = "manual"; // "manual" | "photo"
+  const formValues = {}; // persistent map of field key -> string value
+
   const editor = new CityEditor(document.getElementById("editor"), {
     rows: 6,
     cols: 6,
     onChange: () => clearResults(),
   });
+
+  // ---------- Manual form ----------
+  const baseFieldsEl = document.getElementById("base-fields");
+  const cardFieldsEl = document.getElementById("card-fields");
+
+  function makeField(field) {
+    const wrap = document.createElement("label");
+    wrap.className = "field";
+    const span = document.createElement("span");
+    span.className = "field-label";
+    span.textContent = field.label;
+    if (field.help) {
+      const help = document.createElement("small");
+      help.className = "field-help";
+      help.textContent = field.help;
+      span.appendChild(document.createElement("br"));
+      span.appendChild(help);
+    }
+    const input = document.createElement("input");
+    input.type = "number";
+    input.min = "0";
+    input.step = "1";
+    input.inputMode = "numeric";
+    input.placeholder = "0";
+    input.dataset.key = field.key;
+    input.value = formValues[field.key] ?? "";
+    input.addEventListener("input", () => {
+      formValues[field.key] = input.value;
+      clearResults();
+    });
+    wrap.appendChild(span);
+    wrap.appendChild(input);
+    return wrap;
+  }
+
+  function renderBaseFields() {
+    baseFieldsEl.innerHTML = "";
+    window.BASE_FIELDS.forEach((f) => baseFieldsEl.appendChild(makeField(f)));
+  }
+
+  function renderCardFields() {
+    cardFieldsEl.innerHTML = "";
+    const seen = new Set(window.BASE_FIELDS.map((f) => f.key));
+    if (!activeCards.length) {
+      cardFieldsEl.innerHTML =
+        '<p class="hint">Add scoring cards in step 1 to see their questions here.</p>';
+      return;
+    }
+    activeCards.forEach((id) => {
+      const card = window.CARD_BY_ID[id];
+      const group = document.createElement("fieldset");
+      group.className = "form-group";
+      const legend = document.createElement("legend");
+      legend.innerHTML = `<b>${id}</b> ${card.name}`;
+      group.appendChild(legend);
+
+      const newFields = card.fields.filter((f) => !seen.has(f.key));
+      newFields.forEach((f) => seen.add(f.key));
+
+      if (!card.fields.length) {
+        const note = document.createElement("p");
+        note.className = "hint nomargin";
+        note.textContent =
+          "Scored from your largest-group numbers in the base section above.";
+        group.appendChild(note);
+      } else if (!newFields.length) {
+        const note = document.createElement("p");
+        note.className = "hint nomargin";
+        note.textContent = "Uses numbers you already entered above.";
+        group.appendChild(note);
+      } else {
+        const grid = document.createElement("div");
+        grid.className = "field-grid";
+        newFields.forEach((f) => grid.appendChild(makeField(f)));
+        group.appendChild(grid);
+      }
+      cardFieldsEl.appendChild(group);
+    });
+  }
+
+  function readForm() {
+    const values = {};
+    document
+      .querySelectorAll("#manual-form input[data-key]")
+      .forEach((inp) => (values[inp.dataset.key] = inp.value));
+    return values;
+  }
 
   // ---------- Active cards ----------
   const chips = document.getElementById("card-chips");
@@ -23,12 +113,12 @@
       const card = window.CARD_BY_ID[id];
       const chip = document.createElement("span");
       chip.className = "chip";
-      chip.innerHTML =
-        `<b>${id}</b> ${card.name} <button aria-label="remove">×</button>`;
+      chip.innerHTML = `<b>${id}</b> ${card.name} <button aria-label="remove">×</button>`;
       chip.querySelector("button").addEventListener("click", () => {
         const i = activeCards.indexOf(id);
         if (i >= 0) activeCards.splice(i, 1);
         renderChips();
+        renderCardFields();
         clearResults();
       });
       chips.appendChild(chip);
@@ -42,6 +132,7 @@
     activeCards.push(n);
     activeCards.sort((a, b) => a - b);
     renderChips();
+    renderCardFields();
     clearResults();
   }
 
@@ -52,6 +143,7 @@
   });
   cardInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
+      e.preventDefault();
       addCard(cardInput.value);
       cardInput.value = "";
     }
@@ -65,9 +157,7 @@
     row.innerHTML = `
       <div class="rule-num">${card.id}</div>
       <div class="rule-body">
-        <div class="rule-name">${card.name}${
-      card.heuristic ? ' <span class="tag">auto-estimate</span>' : ""
-    }</div>
+        <div class="rule-name">${card.name}</div>
         <div class="rule-text">${card.rule}</div>
       </div>
       <button class="btn mini add">Add</button>`;
@@ -85,7 +175,7 @@
     if (e.target === modal) modal.classList.add("hidden");
   });
 
-  // ---------- Editor toolbar ----------
+  // ---------- Editor toolbar (photo mode) ----------
   const palette = document.getElementById("palette");
   const toolNames = {
     R: "Residential",
@@ -138,8 +228,10 @@
     tab.addEventListener("click", () => {
       document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
       tab.classList.add("active");
-      const photo = document.getElementById("photo-mode");
-      photo.classList.toggle("hidden", tab.dataset.mode !== "photo");
+      mode = tab.dataset.mode;
+      document.getElementById("manual-mode").classList.toggle("hidden", mode !== "manual");
+      document.getElementById("photo-mode").classList.toggle("hidden", mode !== "photo");
+      clearResults();
     });
   });
 
@@ -155,7 +247,7 @@
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      photoData = reader.result; // data URL
+      photoData = reader.result;
       photoPreview.src = photoData;
       photoPreview.classList.remove("hidden");
       photoGo.disabled = false;
@@ -196,8 +288,12 @@
   }
 
   document.getElementById("score-btn").addEventListener("click", () => {
-    const data = editor.getData();
-    const res = window.Sprawl.scoreCity(data, activeCards);
+    let res;
+    if (mode === "manual") {
+      res = window.Sprawl.scoreForm(readForm(), activeCards);
+    } else {
+      res = window.Sprawl.scoreCity(editor.getData(), activeCards);
+    }
     renderResults(res);
   });
 
@@ -226,8 +322,8 @@
       res.cardResults.forEach((c) => {
         html += `<div class="score-line">
           <span><b>${c.id}</b> ${c.name}${
-          c.heuristic ? ' <span class="tag" title="Spatial rule estimated automatically — verify by hand if it matters">est.</span>' : ""
-        }<br><small class="muted">${c.note}</small></span>
+          c.note ? `<br><small class="muted">${c.note}</small>` : ""
+        }</span>
           <b>${c.points > 0 ? "+" : ""}${c.points}</b></div>`;
       });
       html += line("Cards subtotal", res.cardTotal, "subtotal");
@@ -242,18 +338,14 @@
       }</div>
     </div>`;
 
-    if (res.cardResults.some((c) => c.heuristic)) {
-      html +=
-        '<p class="hint">Cards marked <span class="tag">est.</span> involve ' +
-        "road geometry that is auto-estimated. Double-check those against the " +
-        "physical card if the game is close.</p>";
-    }
-
     resultsEl.innerHTML = html;
     resultsEl.classList.remove("hidden");
     if (resultsEl.scrollIntoView)
       resultsEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
+  // ---------- Init ----------
+  renderBaseFields();
+  renderCardFields();
   renderChips();
 })();

@@ -9,11 +9,13 @@ special card's score, and tells you whether you beat the win target.
 
 ## Features
 
-- **Manual entry** (no AI needed): paint each block's zone (Residential /
-  Commercial / Industrial / Park) on a resizable grid and draw the roads along
-  the grid lines.
+- **Manual entry** (no AI needed): a numeric **form**. You enter your base
+  numbers (largest group of each zone type, number of roads), and the form then
+  asks one or two simple counting questions per scoring card you've added —
+  things you can read straight off your finished city. No drawing required.
 - **Photo entry**: upload or take a top-down photo of the finished city; Claude
-  interprets it into the grid, which you then review and correct before scoring.
+  interprets it into an editable grid, which you then review and correct before
+  scoring.
 - **Full scoring-card database**: all 18 scoring-condition cards with their exact
   rules, browsable in-app and used by the scoring engine.
 - **Automatic scoring**: base score (largest group of each zone type, minus the
@@ -96,13 +98,14 @@ value of the scoring cards in play (the sum of their numbers).
 The full card text lives in [`public/js/cards.js`](public/js/cards.js) and the
 scoring algorithms in [`public/js/scoring.js`](public/js/scoring.js).
 
-### A note on road-based cards
+### Manual form vs. photo
 
-Most cards are scored exactly. A few (marked **est.** in the app) depend on
-subtle road geometry — **The Outskirts (1)**, **Mini Marts (11)**, and **Park
-Hopping (13)** — and are computed with a best-effort interpretation of the rules.
-If a game is close, verify those against the physical cards. Every other card,
-plus the base score, is computed exactly from the grid you enter.
+- In the **manual form**, *you* do the counting and the app applies each card's
+  formula to your numbers, so every card is exact by construction.
+- In **photo mode**, the app derives everything from the AI-interpreted grid.
+  Most cards are scored exactly from the grid; a few road-geometry cards —
+  **The Outskirts (1)**, **Mini Marts (11)**, and **Park Hopping (13)** — use a
+  best-effort interpretation, so double-check those if a game is close.
 
 ## Project layout
 

@@ -46,6 +46,23 @@
           <button class="btn tab" data-mode="photo">📷 Take a photo</button>
         </div>
 
+        <!-- Manual: numeric form -->
+        <div id="manual-mode">
+          <p class="hint">
+            Count these straight off your finished city and type in the numbers —
+            no drawing required. The questions below the base score appear based
+            on which scoring cards you added in step 1.
+          </p>
+          <form id="manual-form" autocomplete="off">
+            <fieldset class="form-group">
+              <legend>Base score</legend>
+              <div id="base-fields" class="field-grid"></div>
+            </fieldset>
+            <div id="card-fields"></div>
+          </form>
+        </div>
+
+        <!-- Photo: AI interprets a picture into the reviewable grid -->
         <div id="photo-mode" class="hidden">
           <p class="hint">
             Snap or upload a top-down photo of the finished city. AI will
@@ -56,35 +73,35 @@
           <button id="photo-go" class="btn primary" disabled>Interpret photo</button>
           <span id="photo-status" class="photo-status"></span>
           <img id="photo-preview" class="photo-preview hidden" alt="city preview" />
-        </div>
 
-        <div class="editor-toolbar">
-          <div class="palette" id="palette">
-            <button class="swatch" data-tool="R" style="--c: #e8a866">Residential</button>
-            <button class="swatch" data-tool="C" style="--c: #39b6d8">Commercial</button>
-            <button class="swatch" data-tool="I" style="--c: #9aa0a6">Industrial</button>
-            <button class="swatch" data-tool="P" style="--c: #6cc04a">Park</button>
-            <button class="swatch" data-tool="erase" style="--c: #f4f5f7">Erase</button>
-            <button class="swatch road" data-tool="road" style="--c: #222">Roads</button>
+          <div class="editor-toolbar">
+            <div class="palette" id="palette">
+              <button class="swatch" data-tool="R" style="--c: #e8a866">Residential</button>
+              <button class="swatch" data-tool="C" style="--c: #39b6d8">Commercial</button>
+              <button class="swatch" data-tool="I" style="--c: #9aa0a6">Industrial</button>
+              <button class="swatch" data-tool="P" style="--c: #6cc04a">Park</button>
+              <button class="swatch" data-tool="erase" style="--c: #f4f5f7">Erase</button>
+              <button class="swatch road" data-tool="road" style="--c: #222">Roads</button>
+            </div>
+            <div class="grid-controls">
+              <span>Rows</span>
+              <button class="btn mini" data-grid="row-">−</button>
+              <span id="row-count">6</span>
+              <button class="btn mini" data-grid="row+">+</button>
+              <span>Cols</span>
+              <button class="btn mini" data-grid="col-">−</button>
+              <span id="col-count">6</span>
+              <button class="btn mini" data-grid="col+">+</button>
+              <button class="btn ghost" id="clear-btn">Clear</button>
+            </div>
           </div>
-          <div class="grid-controls">
-            <span>Rows</span>
-            <button class="btn mini" data-grid="row-">−</button>
-            <span id="row-count">6</span>
-            <button class="btn mini" data-grid="row+">+</button>
-            <span>Cols</span>
-            <button class="btn mini" data-grid="col-">−</button>
-            <span id="col-count">6</span>
-            <button class="btn mini" data-grid="col+">+</button>
-            <button class="btn ghost" id="clear-btn">Clear</button>
+          <p class="hint" id="tool-hint">
+            Selected: <b>Residential</b>. Click and drag on the grid to paint
+            blocks. Switch to <b>Roads</b> to click the grid lines where roads run.
+          </p>
+          <div class="editor-wrap">
+            <svg id="editor"></svg>
           </div>
-        </div>
-        <p class="hint" id="tool-hint">
-          Selected: <b>Residential</b>. Click and drag on the grid to paint
-          blocks. Switch to <b>Roads</b> to click the grid lines where roads run.
-        </p>
-        <div class="editor-wrap">
-          <svg id="editor"></svg>
         </div>
       </section>
 

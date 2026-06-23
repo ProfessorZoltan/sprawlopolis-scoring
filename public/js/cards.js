@@ -7,9 +7,16 @@
 //   I = Industrial  (grey)
 //   P = Park        (green)
 //
-// Each card has an `id` (1-18, the number printed on the card and also its
-// face value toward the win target), a `name`, the full `rule` text, a short
-// `summary`, and a `scorer` key that maps to a function in scoring.js.
+// Each card has:
+//   id       1-18, the number printed on the card (also its face value toward
+//            the win target)
+//   name     card title
+//   rule     full rule text
+//   summary  one-line plain description
+//   scorer   key into the grid-based engine in scoring.js (used by photo mode)
+//   fields   inputs the MANUAL FORM asks for (deduped by `key` across cards)
+//   score    computes this card's points from a flat map of field values
+//            (the map also includes the shared base fields below)
 window.SCORING_CARDS = [
   {
     id: 1,
@@ -19,7 +26,11 @@ window.SCORING_CARDS = [
       "-1pt / Road that ends at the edge of the city.",
     summary: "Reward interior roads, punish roads that run off the city edge.",
     scorer: "outskirts",
-    heuristic: true,
+    fields: [
+      { key: "out_interior", label: "Roads that do NOT end at the city edge" },
+      { key: "out_edge", label: "Roads that DO end at the city edge" },
+    ],
+    score: (v) => num(v.out_interior) - num(v.out_edge),
   },
   {
     id: 2,
@@ -29,6 +40,11 @@ window.SCORING_CARDS = [
       "-1pt / Each row & column with exactly 0 Park blocks in it.",
     summary: "Rows/columns with exactly 3 parks score; those with 0 parks lose.",
     scorer: "bloomBoom",
+    fields: [
+      { key: "bloom_three", label: "Rows + columns containing exactly 3 parks" },
+      { key: "bloom_zero", label: "Rows + columns containing exactly 0 parks" },
+    ],
+    score: (v) => num(v.bloom_three) - num(v.bloom_zero),
   },
   {
     id: 3,
@@ -36,6 +52,11 @@ window.SCORING_CARDS = [
     rule: "+1pt / Park block in your city. -3pts / Industrial block in your city.",
     summary: "Reward every park, heavily punish every industrial block.",
     scorer: "goGreen",
+    fields: [
+      { key: "tot_park", label: "Total Park blocks in the city" },
+      { key: "tot_ind", label: "Total Industrial blocks in the city" },
+    ],
+    score: (v) => num(v.tot_park) - 3 * num(v.tot_ind),
   },
   {
     id: 4,
@@ -47,6 +68,18 @@ window.SCORING_CARDS = [
       "# of groups -> points: 0=-8, 1=-5, 2=-2, 3=1, 4=4, 5+=7.",
     summary: "Count 2x2 same-type squares; more squares = more points.",
     scorer: "blockParty",
+    fields: [
+      {
+        key: "bp_groups",
+        label: "Number of 2×2 squares of four matching blocks",
+        help: "Count every 2×2 block of four same-type blocks; overlaps count separately.",
+      },
+    ],
+    score: (v) => {
+      const g = num(v.bp_groups);
+      const table = [-8, -5, -2, 1, 4];
+      return g >= 5 ? 7 : table[g] ?? -8;
+    },
   },
   {
     id: 5,
@@ -55,6 +88,13 @@ window.SCORING_CARDS = [
       "+2pts / Industrial block adjacent to only Commercial or Industrial blocks.",
     summary: "Industrial blocks touching only commercial/industrial neighbors.",
     scorer: "stacksAndScrapers",
+    fields: [
+      {
+        key: "ss_count",
+        label: "Industrial blocks touching only commercial/industrial neighbours",
+      },
+    ],
+    score: (v) => 2 * num(v.ss_count),
   },
   {
     id: 6,
@@ -64,6 +104,8 @@ window.SCORING_CARDS = [
       "number of blocks in your largest Residential group. Score that many points.",
     summary: "Largest residential group minus largest industrial group.",
     scorer: "masterPlanned",
+    fields: [], // uses the shared "largest group" base inputs
+    score: (v) => num(v.largestR) - num(v.largestI),
   },
   {
     id: 7,
@@ -73,6 +115,11 @@ window.SCORING_CARDS = [
       "-2pts / Park block on the edge of the city.",
     summary: "Interior parks score, edge parks lose double.",
     scorer: "centralPerks",
+    fields: [
+      { key: "cp_interior", label: "Park blocks in the interior (not on the edge)" },
+      { key: "cp_edge", label: "Park blocks on the city edge" },
+    ],
+    score: (v) => num(v.cp_interior) - 2 * num(v.cp_edge),
   },
   {
     id: 8,
@@ -82,6 +129,14 @@ window.SCORING_CARDS = [
       "-2pts / Industrial block adjacent to your largest group of Residential blocks.",
     summary: "Parks near your biggest residential group help; industrial hurts.",
     scorer: "theBurbs",
+    fields: [
+      { key: "burbs_park", label: "Parks adjacent to your largest Residential group" },
+      {
+        key: "burbs_ind",
+        label: "Industrial adjacent to your largest Residential group",
+      },
+    ],
+    score: (v) => num(v.burbs_park) - 2 * num(v.burbs_ind),
   },
   {
     id: 9,
@@ -91,6 +146,13 @@ window.SCORING_CARDS = [
       "Industrial block.",
     summary: "Industrial blocks touching another industrial (incl. diagonally).",
     scorer: "concreteJungle",
+    fields: [
+      {
+        key: "cj_count",
+        label: "Industrial blocks touching another industrial (corner or edge)",
+      },
+    ],
+    score: (v) => num(v.cj_count),
   },
   {
     id: 10,
@@ -100,6 +162,10 @@ window.SCORING_CARDS = [
       "You may only score for 1 Row or Column.",
     summary: "Score the single row or column with the most commercial blocks.",
     scorer: "theStrip",
+    fields: [
+      { key: "strip_best", label: "Most commercial blocks in any single row or column" },
+    ],
+    score: (v) => num(v.strip_best),
   },
   {
     id: 11,
@@ -110,7 +176,13 @@ window.SCORING_CARDS = [
       "in a 'stepped' pattern.",
     summary: "Commercial flanked by two residential, joined by one road.",
     scorer: "miniMarts",
-    heuristic: true,
+    fields: [
+      {
+        key: "mm_count",
+        label: "Commercial blocks between two residential, joined by one road",
+      },
+    ],
+    score: (v) => 2 * num(v.mm_count),
   },
   {
     id: 12,
@@ -120,6 +192,10 @@ window.SCORING_CARDS = [
       "longest road.",
     summary: "Half the length (rounded down) of your single longest road.",
     scorer: "superhighway",
+    fields: [
+      { key: "sh_longest", label: "Length of your longest road (in road sections)" },
+    ],
+    score: (v) => Math.floor(num(v.sh_longest) / 2),
   },
   {
     id: 13,
@@ -127,7 +203,10 @@ window.SCORING_CARDS = [
     rule: "+3pts / Road that begins at one Park and ends at a different Park.",
     summary: "Roads that connect two different parks end-to-end.",
     scorer: "parkHopping",
-    heuristic: true,
+    fields: [
+      { key: "ph_count", label: "Roads that connect two different parks" },
+    ],
+    score: (v) => 3 * num(v.ph_count),
   },
   {
     id: 14,
@@ -137,6 +216,10 @@ window.SCORING_CARDS = [
       "in your city.",
     summary: "Every road section that is part of a closed loop.",
     scorer: "loopingLanes",
+    fields: [
+      { key: "ll_count", label: "Road sections that are part of a completed loop" },
+    ],
+    score: (v) => num(v.ll_count),
   },
   {
     id: 15,
@@ -144,6 +227,10 @@ window.SCORING_CARDS = [
     rule: "+2pts / Residential block adjacent to 2 or more Industrial blocks.",
     summary: "Residential blocks next to 2+ industrial blocks.",
     scorer: "skidRow",
+    fields: [
+      { key: "sr_count", label: "Residential blocks next to 2 or more industrial" },
+    ],
+    score: (v) => 2 * num(v.sr_count),
   },
   {
     id: 16,
@@ -153,6 +240,13 @@ window.SCORING_CARDS = [
       "Commercial block.",
     summary: "Roads that touch both a residential and a commercial block.",
     scorer: "morningCommute",
+    fields: [
+      {
+        key: "mc_count",
+        label: "Roads passing through both a residential and a commercial block",
+      },
+    ],
+    score: (v) => 2 * num(v.mc_count),
   },
   {
     id: 17,
@@ -162,6 +256,15 @@ window.SCORING_CARDS = [
       "Additional +1pt / Commercial block on a corner edge.",
     summary: "Edge commercial blocks score; corner commercial scores extra.",
     scorer: "touristTraps",
+    fields: [
+      { key: "tt_edge", label: "Commercial blocks on the city edge (including corners)" },
+      {
+        key: "tt_corner",
+        label: "Commercial blocks on a corner",
+        help: "Corner blocks also count in the edge total above; they score 1 extra here.",
+      },
+    ],
+    score: (v) => num(v.tt_edge) + num(v.tt_corner),
   },
   {
     id: 18,
@@ -171,8 +274,29 @@ window.SCORING_CARDS = [
       "your longest Column (skipping any gaps). Score that many points.",
     summary: "Blocks in your fullest row plus blocks in your fullest column.",
     scorer: "sprawlopolis",
+    fields: [
+      { key: "sp_row", label: "Blocks in your longest row (gaps skipped)" },
+      { key: "sp_col", label: "Blocks in your longest column (gaps skipped)" },
+    ],
+    score: (v) => num(v.sp_row) + num(v.sp_col),
   },
 ];
+
+// Shared inputs always asked in the manual form (drive the base score and a
+// couple of cards such as Master Planned).
+window.BASE_FIELDS = [
+  { key: "largestR", label: "Largest Residential group (blocks)" },
+  { key: "largestC", label: "Largest Commercial group (blocks)" },
+  { key: "largestI", label: "Largest Industrial group (blocks)" },
+  { key: "largestP", label: "Largest Park group (blocks)" },
+  { key: "roads", label: "Number of roads (separate continuous stretches)" },
+];
+
+function num(x) {
+  const n = parseInt(x, 10);
+  return Number.isFinite(n) ? n : 0;
+}
+window.fieldNum = num;
 
 window.CARD_BY_ID = {};
 window.SCORING_CARDS.forEach((c) => (window.CARD_BY_ID[c.id] = c));

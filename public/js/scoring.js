@@ -599,5 +599,39 @@
     };
   }
 
-  window.Sprawl = { City, baseScore, scoreCity, scoreCard, SCORERS };
+  // ---------- Manual-form scoring ----------
+  // `values` is a flat map of field key -> number (base fields + card fields).
+  // Returns the same shape as scoreCity so the results renderer is shared.
+  function scoreForm(values, activeCardIds) {
+    const n = (k) => window.fieldNum(values[k]);
+    const groups = {
+      R: n("largestR"),
+      C: n("largestC"),
+      I: n("largestI"),
+      P: n("largestP"),
+    };
+    const blockTotal = groups.R + groups.C + groups.I + groups.P;
+    const roadCount = n("roads");
+    const base = {
+      groups,
+      blockTotal,
+      roadCount,
+      total: blockTotal - roadCount,
+    };
+
+    const cardResults = [];
+    let cardTotal = 0;
+    for (const id of activeCardIds) {
+      const card = window.CARD_BY_ID[id];
+      if (!card) continue;
+      const points = card.score ? card.score(values) : 0;
+      cardResults.push({ id, name: card.name, points, note: "", heuristic: false });
+      cardTotal += points;
+    }
+    const finalScore = base.total + cardTotal;
+    const target = activeCardIds.reduce((a, b) => a + b, 0);
+    return { base, cardResults, cardTotal, finalScore, target, win: finalScore >= target };
+  }
+
+  window.Sprawl = { City, baseScore, scoreCity, scoreCard, scoreForm, SCORERS };
 })();
