@@ -120,29 +120,29 @@
     }
 
     // ---- Road graph helpers ----
+    //
+    // Roads run THROUGH blocks (block-center to block-center), not along the
+    // boundaries between them. A road segment links two orthogonally adjacent
+    // cells, crossing their shared edge at its midpoint:
+    //   "H_r_c" links cell (r,c) <-> (r,c+1)
+    //   "V_r_c" links cell (r,c) <-> (r+1,c)
+    // Road-graph vertices are therefore CELLS ("r,c"), and a "road section" is a
+    // block the road passes through (one vertex).
 
-    // Endpoints of a segment key -> two vertex keys "r,c".
-    segVertices(seg) {
+    // The two cells a road segment links -> array of [r,c].
+    linkCells(seg) {
       const [t, r, c] = seg.split("_");
       const R = +r,
         C = +c;
-      if (t === "H") return [R + "," + C, R + "," + (C + 1)];
-      return [R + "," + C, R + 1 + "," + C]; // V
+      if (t === "H") return [[R, C], [R, C + 1]];
+      return [[R, C], [R + 1, C]]; // V
     }
 
-    // Cells bordering a road segment -> array of [r,c] that are in bounds.
-    segCells(seg) {
-      const [t, r, c] = seg.split("_");
-      const R = +r,
-        C = +c;
-      let pair;
-      if (t === "H") pair = [[R - 1, C], [R, C]];
-      else pair = [[R, C - 1], [R, C]];
-      return pair.filter(([rr, cc]) => this.inBounds(rr, cc));
+    cellKey(r, c) {
+      return r + "," + c;
     }
 
-    // Build the road graph. Returns { adj: Map(vertex -> [{to, seg}]),
-    // degree: Map(vertex -> n) }.
+    // adjacency Map(cellKey -> [{ to: cellKey, seg }])
     roadGraph() {
       const adj = new Map();
       const add = (a, b, seg) => {
@@ -150,86 +150,65 @@
         adj.get(a).push({ to: b, seg });
       };
       for (const seg of this.roads) {
-        const [a, b] = this.segVertices(seg);
+        const [[ar, ac], [br, bc]] = this.linkCells(seg);
+        const a = this.cellKey(ar, ac),
+          b = this.cellKey(br, bc);
         add(a, b, seg);
         add(b, a, seg);
       }
       return adj;
     }
 
-    // Connected components of the road graph, each as a set of segment keys.
+    // Connected components of the road network. Each: { cells:Set, segs:Set }.
     roadComponents() {
       const adj = this.roadGraph();
-      const seenSeg = new Set();
+      const seen = new Set();
       const comps = [];
-      for (const seg of this.roads) {
-        if (seenSeg.has(seg)) continue;
-        // BFS over segments via shared vertices.
-        const [sa] = this.segVertices(seg);
-        const stackV = [sa];
-        const visitedV = new Set([sa]);
-        const compSegs = new Set();
-        while (stackV.length) {
-          const v = stackV.pop();
+      for (const start of adj.keys()) {
+        if (seen.has(start)) continue;
+        const stack = [start];
+        seen.add(start);
+        const cells = new Set([start]);
+        const segs = new Set();
+        while (stack.length) {
+          const v = stack.pop();
           for (const e of adj.get(v) || []) {
-            if (!compSegs.has(e.seg)) {
-              compSegs.add(e.seg);
-              seenSeg.add(e.seg);
-            }
-            if (!visitedV.has(e.to)) {
-              visitedV.add(e.to);
-              stackV.push(e.to);
+            segs.add(e.seg);
+            if (!seen.has(e.to)) {
+              seen.add(e.to);
+              cells.add(e.to);
+              stack.push(e.to);
             }
           }
         }
-        comps.push({ segs: compSegs, vertices: visitedV });
+        comps.push({ cells, segs });
       }
       return comps;
     }
 
-    // Degree-1 vertices (true road endpoints) within a component.
-    endpointsOf(comp) {
+    // Degree (number of road links) of each cell within a component.
+    degreesOf(comp) {
       const deg = new Map();
       for (const seg of comp.segs) {
-        for (const v of this.segVertices(seg)) {
-          deg.set(v, (deg.get(v) || 0) + 1);
+        for (const [r, c] of this.linkCells(seg)) {
+          const k = this.cellKey(r, c);
+          deg.set(k, (deg.get(k) || 0) + 1);
         }
       }
+      return deg;
+    }
+
+    // Dead-end blocks of a road (degree-1 cells).
+    endpointCells(comp) {
+      const deg = this.degreesOf(comp);
       const ends = [];
-      for (const [v, d] of deg) if (d === 1) ends.push(v);
+      for (const [k, d] of deg) if (d === 1) ends.push(k);
       return ends;
     }
 
-    // Park blocks that have vertex `v` ("r,c") as one of their four corners.
-    parksAtVertex(v) {
-      const [vr, vc] = v.split(",").map(Number);
-      const out = [];
-      // The four cells touching this vertex.
-      for (const [rr, cc] of [
-        [vr - 1, vc - 1],
-        [vr - 1, vc],
-        [vr, vc - 1],
-        [vr, vc],
-      ]) {
-        if (this.zone(rr, cc) === "P") out.push(rr + "," + cc);
-      }
-      return out;
-    }
-
-    // Is a vertex on the edge of the city footprint?
-    // True if fewer than 4 of the surrounding cells are placed.
-    vertexOnEdge(v) {
-      const [vr, vc] = v.split(",").map(Number);
-      let placedCount = 0;
-      for (const [rr, cc] of [
-        [vr - 1, vc - 1],
-        [vr - 1, vc],
-        [vr, vc - 1],
-        [vr, vc],
-      ]) {
-        if (this.zone(rr, cc)) placedCount++;
-      }
-      return placedCount < 4;
+    zoneOfKey(k) {
+      const [r, c] = k.split(",").map(Number);
+      return this.zone(r, c);
     }
   }
 
@@ -261,9 +240,12 @@
       let interior = 0,
         edge = 0;
       for (const comp of comps) {
-        const ends = city.endpointsOf(comp);
-        // A pure loop has no endpoints -> does not end at the edge.
-        const endsAtEdge = ends.some((v) => city.vertexOnEdge(v));
+        const ends = city.endpointCells(comp);
+        // A pure loop has no dead-ends -> does not end at the edge.
+        const endsAtEdge = ends.some((k) => {
+          const [r, c] = k.split(",").map(Number);
+          return city.isEdge(r, c);
+        });
         if (endsAtEdge) {
           pts -= 1;
           edge++;
@@ -446,61 +428,53 @@
     superhighway(city) {
       const comps = city.roadComponents();
       let longest = 0;
-      for (const comp of comps) longest = Math.max(longest, comp.segs.size);
+      for (const comp of comps) longest = Math.max(longest, comp.cells.size);
       return {
         points: Math.floor(longest / 2),
         note: `longest road = ${longest} section(s)`,
       };
     },
 
-    // 13 (heuristic: a road whose endpoints touch two different parks)
+    // 13 (heuristic: a road whose dead-end blocks are two different parks)
     parkHopping(city) {
       const comps = city.roadComponents();
       let roads = 0;
       for (const comp of comps) {
-        const ends = city.endpointsOf(comp);
-        const parks = new Set();
-        for (const v of ends) for (const p of city.parksAtVertex(v)) parks.add(p);
-        if (parks.size >= 2) roads++;
+        const ends = city.endpointCells(comp);
+        const parks = ends.filter((k) => city.zoneOfKey(k) === "P");
+        if (new Set(parks).size >= 2) roads++;
       }
       return { points: roads * 3, note: `${roads} park-to-park road(s)` };
     },
 
     // 14
     loopingLanes(city) {
-      // Iteratively prune degree-1 vertices; remaining segments lie on loops.
-      const adj = new Map();
-      const segSet = new Set(city.roads);
-      const deg = new Map();
-      const inc = (v, seg) => {
-        if (!adj.has(v)) adj.set(v, new Map());
-        adj.get(v).set(seg, true);
-        deg.set(v, (deg.get(v) || 0) + 1);
-      };
-      for (const seg of segSet) {
-        const [a, b] = city.segVertices(seg);
-        inc(a, seg);
-        inc(b, seg);
-      }
+      // Iteratively remove every link touching a dead-end (degree<=1) block.
+      // Whatever links remain form completed loops; count the blocks they cover.
+      const segs = new Set(city.roads);
       let changed = true;
       while (changed) {
         changed = false;
-        for (const [v, d] of deg) {
-          if (d === 1) {
-            // find its one remaining segment
-            const segs = adj.get(v);
-            for (const seg of segs.keys()) {
-              if (!segSet.has(seg)) continue;
-              segSet.delete(seg);
-              const [a, b] = city.segVertices(seg);
-              deg.set(a, deg.get(a) - 1);
-              deg.set(b, deg.get(b) - 1);
-              changed = true;
-            }
+        const deg = new Map();
+        for (const seg of segs)
+          for (const [r, c] of city.linkCells(seg)) {
+            const k = city.cellKey(r, c);
+            deg.set(k, (deg.get(k) || 0) + 1);
+          }
+        for (const seg of [...segs]) {
+          const touchesLeaf = city
+            .linkCells(seg)
+            .some(([r, c]) => (deg.get(city.cellKey(r, c)) || 0) <= 1);
+          if (touchesLeaf) {
+            segs.delete(seg);
+            changed = true;
           }
         }
       }
-      return { points: segSet.size, note: `${segSet.size} looped section(s)` };
+      const cells = new Set();
+      for (const seg of segs)
+        for (const [r, c] of city.linkCells(seg)) cells.add(city.cellKey(r, c));
+      return { points: cells.size, note: `${cells.size} looped block(s)` };
     },
 
     // 15
@@ -519,14 +493,13 @@
       let roads = 0;
       for (const comp of comps) {
         const zones = new Set();
-        for (const seg of comp.segs)
-          for (const [r, c] of city.segCells(seg)) {
-            const z = city.zone(r, c);
-            if (z) zones.add(z);
-          }
+        for (const k of comp.cells) {
+          const z = city.zoneOfKey(k);
+          if (z) zones.add(z);
+        }
         if (zones.has("R") && zones.has("C")) roads++;
       }
-      return { points: roads * 2, note: `${roads} road(s) touching R and C` };
+      return { points: roads * 2, note: `${roads} road(s) through R and C` };
     },
 
     // 17

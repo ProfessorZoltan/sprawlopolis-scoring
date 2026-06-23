@@ -40,12 +40,12 @@
           r < this.rows && c < this.cols ? old[r][c] : null
         )
       );
-      // Drop roads that fall outside the new lattice.
+      // Drop road links that no longer connect two in-bounds cells.
       const kept = new Set();
       for (const seg of this.roads) {
         const [t, r, c] = seg.split("_").map((x, i) => (i ? +x : x));
-        if (t === "H" && r <= rows && c < cols) kept.add(seg);
-        if (t === "V" && r < rows && c <= cols) kept.add(seg);
+        if (t === "H" && r < rows && c + 1 < cols) kept.add(seg);
+        if (t === "V" && r + 1 < rows && c < cols) kept.add(seg);
       }
       this.roads = kept;
       this.rows = rows;
@@ -147,52 +147,60 @@
         }
       }
 
-      // Road segments
-      const drawSeg = (seg, x1, y1, x2, y2) => {
+      // Roads run THROUGH blocks: each link joins two adjacent cell centers,
+      // crossing their shared edge at its midpoint (hx,hy is the click target).
+      const center = (r, c) => [c * CELL + CELL / 2, r * CELL + CELL / 2];
+      const drawLink = (seg, ar, ac, br, bc) => {
         const on = this.roads.has(seg);
+        const [ax, ay] = center(ar, ac);
+        const [bx, by] = center(br, bc);
         if (on) {
           const line = document.createElementNS(NS, "line");
-          line.setAttribute("x1", x1);
-          line.setAttribute("y1", y1);
-          line.setAttribute("x2", x2);
-          line.setAttribute("y2", y2);
-          line.setAttribute("stroke", "#222");
-          line.setAttribute("stroke-width", "5");
+          line.setAttribute("x1", ax);
+          line.setAttribute("y1", ay);
+          line.setAttribute("x2", bx);
+          line.setAttribute("y2", by);
+          line.setAttribute("stroke", "#2b2b2b");
+          line.setAttribute("stroke-width", "7");
           line.setAttribute("stroke-linecap", "round");
           line.style.pointerEvents = "none";
           svg.appendChild(line);
         }
         if (roadMode) {
-          const hit = document.createElementNS(NS, "line");
-          hit.setAttribute("x1", x1);
-          hit.setAttribute("y1", y1);
-          hit.setAttribute("x2", x2);
-          hit.setAttribute("y2", y2);
-          hit.setAttribute("stroke", on ? "transparent" : "#dfe3e8");
-          hit.setAttribute("stroke-width", "12");
-          hit.setAttribute("stroke-linecap", "round");
+          const hx = (ax + bx) / 2,
+            hy = (ay + by) / 2;
+          const dot = document.createElementNS(NS, "circle");
+          dot.setAttribute("cx", hx);
+          dot.setAttribute("cy", hy);
+          dot.setAttribute("r", "5");
+          dot.setAttribute("fill", on ? "#2b2b2b" : "#fff");
+          dot.setAttribute("stroke", on ? "#2b2b2b" : "#aab0b7");
+          dot.setAttribute("stroke-width", "1.5");
+          dot.style.pointerEvents = "none";
+          const hit = document.createElementNS(NS, "circle");
+          hit.setAttribute("cx", hx);
+          hit.setAttribute("cy", hy);
+          hit.setAttribute("r", "12");
+          hit.setAttribute("fill", "transparent");
           hit.style.cursor = "pointer";
-          hit.style.pointerEvents = "stroke";
+          hit.style.pointerEvents = "all";
           hit.addEventListener("mousedown", (e) => {
             e.preventDefault();
             this._toggleRoad(seg);
           });
+          svg.appendChild(dot);
           svg.appendChild(hit);
         }
       };
 
-      if (roadMode) {
-        // draw faint guide dots at vertices
-      }
-
-      for (let r = 0; r <= this.rows; r++) {
-        for (let c = 0; c < this.cols; c++) {
-          drawSeg(`H_${r}_${c}`, c * CELL, r * CELL, (c + 1) * CELL, r * CELL);
+      for (let r = 0; r < this.rows; r++) {
+        for (let c = 0; c < this.cols - 1; c++) {
+          drawLink(`H_${r}_${c}`, r, c, r, c + 1); // (r,c) <-> (r,c+1)
         }
       }
-      for (let r = 0; r < this.rows; r++) {
-        for (let c = 0; c <= this.cols; c++) {
-          drawSeg(`V_${r}_${c}`, c * CELL, r * CELL, c * CELL, (r + 1) * CELL);
+      for (let r = 0; r < this.rows - 1; r++) {
+        for (let c = 0; c < this.cols; c++) {
+          drawLink(`V_${r}_${c}`, r, c, r + 1, c); // (r,c) <-> (r+1,c)
         }
       }
     }

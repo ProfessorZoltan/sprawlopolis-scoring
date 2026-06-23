@@ -193,8 +193,8 @@
     const hint = document.getElementById("tool-hint");
     if (tool === "road") {
       hint.innerHTML =
-        "Selected: <b>Roads</b>. Click the grid lines between/around blocks to " +
-        "place or remove road segments.";
+        "Selected: <b>Roads</b>. Roads run through blocks — click the dot " +
+        "between two adjacent blocks to run a road between them.";
     } else if (tool === "erase") {
       hint.innerHTML = "Selected: <b>Erase</b>. Click or drag to remove blocks.";
     } else {

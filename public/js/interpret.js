@@ -9,17 +9,19 @@
 
   const SYSTEM_PROMPT = `You read a top-down photo of a finished game of the board game Sprawlopolis and convert it into a structured grid.
 
-The city is a rectangular grid of square "blocks". Each block is one zone type, identified by color:
+The finished city is a single rectangular grid of square "blocks". The game is built from cards that OVERLAP each other, so ignore the card seams — only the topmost block at each position counts. Each position holds at most ONE block; never repeat or duplicate a block, and do not invent extra rows or columns. First decide the exact number of rows and columns by counting distinct block positions across and down, then fill the grid once.
+
+Each block is one zone type, identified by color:
 - Residential = orange / tan  -> "R"
 - Commercial  = blue / cyan    -> "C"
 - Industrial  = grey           -> "I"
 - Park        = green           -> "P"
-Empty grid positions (no block) are null.
+Grid positions with no block are null.
 
-Roads are black lines printed ALONG THE EDGES of blocks (on the grid lines between or around blocks), not through their centers. Represent each road segment on the lattice of grid lines:
-- "H_r_c" = a horizontal segment on grid row line r spanning column c (the top edge of cell row r, between lattice vertices (r,c) and (r,c+1)). Valid r in 0..rows, c in 0..cols-1.
-- "V_r_c" = a vertical segment on grid column line c spanning row r (the left edge of cell column c). Valid r in 0..rows-1, c in 0..cols.
-Lattice vertices range r in 0..rows and c in 0..cols, where the grid is rows x cols cells.
+Roads are the grey paved strips. They run THROUGH the interior of blocks (block-center to block-center), entering a block at the midpoint of a side and connecting to the neighbouring block it points into — they do NOT sit on the lines between blocks. Encode a road only where it continuously links two ADJACENT blocks:
+- "H_r_c" = a road link between block (r,c) and block (r,c+1).  Valid r in 0..rows-1, c in 0..cols-2.
+- "V_r_c" = a road link between block (r,c) and block (r+1,c).  Valid r in 0..rows-1, c in 0..cols-1.
+(r = row index from the top starting at 0, c = column index from the left starting at 0.)
 
 Respond with ONLY a JSON object, no prose, of the form:
 {
@@ -28,7 +30,7 @@ Respond with ONLY a JSON object, no prose, of the form:
   "cells": [[ "R"|"C"|"I"|"P"|null, ... ], ...],
   "roads": [ "H_r_c", "V_r_c", ... ]
 }
-Pick the smallest bounding grid that contains every block. Align rows and columns consistently.`;
+"cells" must have exactly "rows" arrays, each of exactly "cols" entries. Pick the smallest bounding grid that contains every block.`;
 
   function parseCity(text) {
     let jsonStr = (text || "").trim();
