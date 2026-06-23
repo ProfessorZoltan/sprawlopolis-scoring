@@ -30,14 +30,14 @@ npm start
 # open http://localhost:3000
 ```
 
-The **manual form works with no configuration**. For **photo interpretation**,
-provide an Anthropic API key:
+The server just serves static files — **no API key or other configuration is
+needed to run it**. The manual form is fully client-side.
 
-```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-# optional: export ANTHROPIC_MODEL=claude-opus-4-8
-npm start
-```
+**Photo mode** calls the Anthropic API **directly from your browser** using your
+own Claude API key. The first time you interpret a photo, a modal asks for the
+key; it is saved only in your browser (`localStorage`) and is sent only to
+Anthropic — never to this app's server or anywhere else. Use the **API key**
+button in photo mode to update or forget the saved key at any time.
 
 ## Deploying to Render (Blueprint)
 
@@ -48,12 +48,11 @@ Render web service in a few clicks:
 2. In the Render dashboard: **New → Blueprint**, then pick this repository.
    Render reads `render.yaml` and provisions the `sprawlopolis-scorer` web
    service automatically.
-3. (Optional, for photo mode) set the **`ANTHROPIC_API_KEY`** environment
-   variable on the service. It's declared with `sync: false`, so it's never
-   committed — you enter the secret in the dashboard. Leave it unset to run
-   manual-form-only.
-4. Click **Apply**. Render runs `npm install` then `npm start` and serves the
+3. Click **Apply**. Render runs `npm install` then `npm start` and serves the
    app on its assigned URL (the server binds to Render's `PORT` automatically).
+
+No environment variables or secrets are required — photo mode uses the user's
+own Claude API key, entered in the browser at runtime.
 
 The default plan is `free`. Free web services sleep after inactivity and cold-start
 on the next request — bump `plan` in `render.yaml` if you want it always-on.
@@ -110,11 +109,12 @@ scoring algorithms in [`public/js/scoring.js`](public/js/scoring.js).
 ## Project layout
 
 ```
-server.js            Express server + /api/interpret (Claude vision) endpoint
-public/index.html    App shell
+server.js             Static file server (no secrets, no API proxy)
+public/index.html     App shell
 public/css/styles.css
-public/js/cards.js    Database of all 18 scoring cards + zone metadata
-public/js/scoring.js  Base + per-card scoring engine
-public/js/editor.js   SVG grid + road editor
-public/js/app.js      UI wiring (cards, photo, results)
+public/js/cards.js     Database of all 18 scoring cards + manual-form fields
+public/js/scoring.js   Base + per-card scoring engine (grid and form)
+public/js/editor.js    SVG grid + road editor (photo review)
+public/js/interpret.js Direct browser call to the Anthropic API (photo mode)
+public/js/app.js       UI wiring (cards, form, photo, API-key modal, results)
 ```

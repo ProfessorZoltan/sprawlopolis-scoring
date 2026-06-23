@@ -1,9 +1,9 @@
 # Render Blueprint for the Sprawlopolis Scorer.
 # Docs: https://render.com/docs/blueprint-spec
 #
-# Deploys the Express server that serves the static app and the
-# /api/interpret photo endpoint. The manual form works with no config;
-# photo mode needs ANTHROPIC_API_KEY (set it in the Render dashboard).
+# Serves the static app. No server-side secrets are needed: the manual form
+# is fully client-side, and photo mode calls the Anthropic API directly from
+# the browser using the user's own key (stored only in their browser).
 services:
   - type: web
     name: sprawlopolis-scorer
@@ -14,8 +14,3 @@ services:
     startCommand: npm start
     healthCheckPath: /
     autoDeploy: true
-    envVars:
-      - key: ANTHROPIC_API_KEY
-        sync: false # secret — enter in the Render dashboard; leave unset for manual-only
-      - key: ANTHROPIC_MODEL
-        value: claude-opus-4-8

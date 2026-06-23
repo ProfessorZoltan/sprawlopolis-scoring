@@ -235,6 +235,78 @@
     });
   });
 
+  // ---------- API key (stored only in this browser) ----------
+  const KEY_STORAGE = "sprawl_anthropic_key";
+  const getKey = () => {
+    try {
+      return localStorage.getItem(KEY_STORAGE) || "";
+    } catch {
+      return "";
+    }
+  };
+  const setStoredKey = (k) => {
+    try {
+      localStorage.setItem(KEY_STORAGE, k);
+    } catch {}
+  };
+  const clearKey = () => {
+    try {
+      localStorage.removeItem(KEY_STORAGE);
+    } catch {}
+  };
+
+  const keyModal = document.getElementById("key-modal");
+  const keyInput = document.getElementById("key-input");
+  const keyStoredNote = document.getElementById("key-stored-note");
+  let keyResolve = null;
+
+  function updateStoredNote() {
+    keyStoredNote.classList.toggle("hidden", !getKey());
+  }
+
+  // Opens the modal; resolves with the saved key string, or null if cancelled.
+  function openKeyModal() {
+    keyInput.value = getKey();
+    updateStoredNote();
+    keyModal.classList.remove("hidden");
+    keyInput.focus();
+    return new Promise((resolve) => (keyResolve = resolve));
+  }
+  function closeKeyModal(result) {
+    keyModal.classList.add("hidden");
+    if (keyResolve) {
+      keyResolve(result);
+      keyResolve = null;
+    }
+  }
+
+  document.getElementById("key-save").addEventListener("click", () => {
+    const v = keyInput.value.trim();
+    if (!v) {
+      keyInput.focus();
+      return;
+    }
+    setStoredKey(v);
+    closeKeyModal(v);
+  });
+  keyInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      document.getElementById("key-save").click();
+    }
+  });
+  document.getElementById("key-cancel").addEventListener("click", () => closeKeyModal(null));
+  document.getElementById("key-close").addEventListener("click", () => closeKeyModal(null));
+  keyModal.addEventListener("click", (e) => {
+    if (e.target === keyModal) closeKeyModal(null);
+  });
+  document.getElementById("key-forget").addEventListener("click", () => {
+    clearKey();
+    keyInput.value = "";
+    updateStoredNote();
+  });
+  document.getElementById("key-manage").addEventListener("click", () => openKeyModal());
+
   // ---------- Photo mode ----------
   const photoInput = document.getElementById("photo-input");
   const photoGo = document.getElementById("photo-go");
@@ -258,17 +330,20 @@
 
   photoGo.addEventListener("click", async () => {
     if (!photoData) return;
+    let key = getKey();
+    if (!key) {
+      key = await openKeyModal();
+      if (!key) {
+        photoStatus.textContent =
+          "Cancelled — a Claude API key is needed for photo mode.";
+        return;
+      }
+    }
     photoGo.disabled = true;
     photoStatus.textContent = "Interpreting board with AI…";
     try {
-      const resp = await fetch("/api/interpret", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: photoData }),
-      });
-      const json = await resp.json();
-      if (!resp.ok) throw new Error(json.error || "Request failed");
-      editor.load(json.city);
+      const city = await window.interpretCity(photoData, key);
+      editor.load(city);
       document.getElementById("row-count").textContent = editor.rows;
       document.getElementById("col-count").textContent = editor.cols;
       photoStatus.textContent =
