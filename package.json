@@ -1,0 +1,13 @@
+{
+  "name": "sprawlopolis-scoring",
+  "version": "1.0.0",
+  "description": "Scoring app for the board game Sprawlopolis: manual grid entry or AI photo interpretation, with the full database of scoring-condition cards.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "license": "MIT"
+}
